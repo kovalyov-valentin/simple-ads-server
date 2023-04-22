@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/ferluci/fast-realip"
+	"github.com/kovalyov-valentin/simple-ads-server/internal/stats"
 	"github.com/mssola/user_agent"
 	"github.com/oschwald/geoip2-golang"
 	"github.com/valyala/fasthttp"
@@ -14,42 +15,65 @@ import (
 
 type Server struct {
 	geoip *geoip2.Reader
+	stats *stats.Manager
 }
 
-func NewServer(geoip *geoip2.Reader) *Server {
-	return &Server{geoip: geoip}
+func NewServer(geoip *geoip2.Reader, stats *stats.Manager) *Server {
+	return &Server{geoip: geoip, stats: stats}
 }
 
 func (s *Server) Listen() error {
-	return fasthttp.ListenAndServe(":8080", s.handleHttp)
+	return fasthttp.ListenAndServe(":8080", s.handler)
 }
 
-func (s *Server) handleHttp(ctx *fasthttp.RequestCtx) {
+func (s *Server) handler(ctx *fasthttp.RequestCtx) {
+	remoteIp := realip.FromRequest(ctx)
 	ua := string(ctx.Request.Header.UserAgent())
+	
 	parsed := user_agent.New(ua)
-
-	ip := realip.FromRequest(ctx)
-
 	browserName, browserVersion := parsed.Browser()
-	country, err := s.geoip.Country(net.ParseIP(ip))
+
+	statsKey := stats.NewKey(stats.Key{
+		Os: parsed.OS(),
+		Browser: browserName,
+	})
+
+	statsValue := stats.Value{
+		Requests: 1,
+	}
+
+	defer func() {
+		s.stats.Append(statsKey, statsValue)
+	}()
+	
+	country, err := s.geoip.Country(net.ParseIP(remoteIp))
 	if err != nil {
-		log.Println(err)
+		log.Println("Failed to parse country: #{err}")
 		return
 	}
 
-	u := &User{Country: country.Country.IsoCode, Browser: browserName}
+	statsKey.Country = country.Country.IsoCode
+
+	user := &User{
+		Country: country.Country.IsoCode, 
+		Browser: browserName,
+	}
+	
 	campaigns := GetCampaigns() 
 
-	winner := MakeAuction(campaigns, u)
+	winner := MakeAuction(campaigns, user)
 	if winner == nil {
 		ctx.Redirect("https://example.com", http.StatusSeeOther)
 		return 
 	}
 
+	statsKey.CampaignId = winner.Id
+	statsValue.Impressions++
+
 	ctx.Redirect(winner.ClickUrl, http.StatusSeeOther)
 
 	ctx.WriteString(fmt.Sprintf("User-Agent: %s\n", ua))
 	ctx.WriteString(fmt.Sprintf("Browser: %s %s\n", browserName, browserVersion))
-	ctx.WriteString(fmt.Sprintf("IP: %s\n", ip))
+	ctx.WriteString(fmt.Sprintf("IP: %s\n", remoteIp))
 	ctx.WriteString(fmt.Sprintf("Country: %s\n", country.Country.IsoCode))
 }

@@ -2,8 +2,13 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/kovalyov-valentin/simple-ads-server/internal/ads"
+	"github.com/kovalyov-valentin/simple-ads-server/internal/stats"
+	"github.com/kovalyov-valentin/simple-ads-server/internal/stats/clickhouse"
+
+	// "github.com/kovalyov-valentin/simple-ads-server/mysql"
 	"github.com/oschwald/geoip2-golang"
 )
 
@@ -14,7 +19,22 @@ func main() {
 	}
 
 
-	s := ads.NewServer(geoip)
+	// // MySql Writer
+	// mw, err := mysql.NewMySqlWriter("127.0.0.1", 13306, "rotator", "statistics", "root", "qwerty123")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	cw, err := clickhouse.NewClickhouseWriter("127.0.0.1", 19000, "rotator", "statistics", "default", "qwerty123")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	statsManager := stats.NewManager(cw, time.Second * 10)
+	statsManager.Start()
+
+
+	s := ads.NewServer(geoip, statsManager)
 	if err := s.Listen(); err != nil {
 		log.Fatal(err)
 	}
