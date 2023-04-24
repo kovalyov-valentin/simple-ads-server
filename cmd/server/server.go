@@ -7,6 +7,7 @@ import (
 	"github.com/kovalyov-valentin/simple-ads-server/internal/ads"
 	"github.com/kovalyov-valentin/simple-ads-server/internal/stats"
 	"github.com/kovalyov-valentin/simple-ads-server/internal/stats/clickhouse"
+	mts "github.com/kovalyov-valentin/simple-ads-server/internal/metrics"
 
 	// "github.com/kovalyov-valentin/simple-ads-server/mysql"
 	"github.com/oschwald/geoip2-golang"
@@ -25,6 +26,7 @@ func main() {
 	// 	log.Fatal(err)
 	// }
 
+	// ClickHouse Writer
 	cw, err := clickhouse.NewClickhouseWriter("127.0.0.1", 19000, "rotator", "statistics", "default", "qwerty123")
 	if err != nil {
 		log.Fatal(err)
@@ -32,6 +34,10 @@ func main() {
 
 	statsManager := stats.NewManager(cw, time.Second * 10)
 	statsManager.Start()
+
+	go func() {
+		_ = mts.Listen("127.0.0.1:8081")
+	}()
 
 
 	s := ads.NewServer(geoip, statsManager)

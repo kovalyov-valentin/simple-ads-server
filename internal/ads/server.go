@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/ferluci/fast-realip"
 	"github.com/kovalyov-valentin/simple-ads-server/internal/stats"
@@ -27,6 +28,10 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) handler(ctx *fasthttp.RequestCtx) {
+	start := time.Now()
+	defer func() {
+		observeRequest(time.Since(start), ctx.Response.StatusCode())
+	}()
 	remoteIp := realip.FromRequest(ctx)
 	ua := string(ctx.Request.Header.UserAgent())
 	
