@@ -7,7 +7,7 @@ import (
 	"github.com/kovalyov-valentin/simple-ads-server/internal/ads"
 	"github.com/kovalyov-valentin/simple-ads-server/internal/stats"
 	"github.com/kovalyov-valentin/simple-ads-server/internal/stats/clickhouse"
-	mts "github.com/kovalyov-valentin/simple-ads-server/internal/metrics"
+	met "github.com/kovalyov-valentin/simple-ads-server/internal/metrics"
 
 	// "github.com/kovalyov-valentin/simple-ads-server/mysql"
 	"github.com/oschwald/geoip2-golang"
@@ -36,7 +36,7 @@ func main() {
 	statsManager.Start()
 
 	go func() {
-		_ = mts.Listen("127.0.0.1:8081")
+		_ = met.Listen("127.0.0.1:8081")
 	}()
 
 
